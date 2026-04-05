@@ -1,23 +1,31 @@
+const REC_LABELS = {
+  strong_yes: "نعم بشدة",
+  yes: "نعم",
+  maybe: "ربما",
+  no: "لا",
+  strong_no: "لا بشدة",
+};
+
 export default function ScoreBadge({ score, recommendation }) {
   if (score === null || score === undefined) {
-    return <span className="badge badge-gray">Not scored</span>;
+    return <span className="badge badge-gray">غير مُقيّم</span>;
   }
 
   let colorClass = "badge-gray";
-  let barColor = "#64748b";
+  let barColor = "#494C6B";
 
   if (score >= 80) {
     colorClass = "badge-green";
-    barColor = "#22c55e";
+    barColor = "#00C17A";
   } else if (score >= 60) {
     colorClass = "badge-blue";
-    barColor = "#3b82f6";
+    barColor = "#0072F9";
   } else if (score >= 40) {
     colorClass = "badge-yellow";
-    barColor = "#f59e0b";
+    barColor = "#FFBC0A";
   } else {
     colorClass = "badge-red";
-    barColor = "#ef4444";
+    barColor = "#F24935";
   }
 
   return (
@@ -30,7 +38,7 @@ export default function ScoreBadge({ score, recommendation }) {
         />
       </div>
       {recommendation && (
-        <span className="text-sm text-muted">{recommendation.replace("_", " ")}</span>
+        <span className="text-sm text-muted">{REC_LABELS[recommendation] || recommendation}</span>
       )}
     </div>
   );

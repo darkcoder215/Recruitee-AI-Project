@@ -1,4 +1,4 @@
-export default function LoadingSpinner({ text = "Loading..." }) {
+export default function LoadingSpinner({ text = "جارٍ التحميل..." }) {
   return (
     <div className="empty-state">
       <div className="spinner" style={{ margin: "0 auto 1rem" }} />

@@ -6,27 +6,30 @@ export default function Layout() {
     <div className="layout">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1>Recruitee AI</h1>
-          <p>Candidate Screening Platform</p>
+          <img src="/thamanyah.png" alt="ثمانية" />
+          <div>
+            <h1>فرز المرشحين</h1>
+            <p>منصة الذكاء الاصطناعي</p>
+          </div>
         </div>
         <nav className="sidebar-nav">
           <NavLink to="/" end>
-            <LayoutDashboard size={18} /> Dashboard
+            <LayoutDashboard size={18} /> لوحة التحكم
           </NavLink>
           <NavLink to="/candidates">
-            <Users size={18} /> Candidates
+            <Users size={18} /> المرشحون
           </NavLink>
           <NavLink to="/pipeline">
-            <Columns3 size={18} /> Pipeline
+            <Columns3 size={18} /> مسار التوظيف
           </NavLink>
           <NavLink to="/jobs">
-            <Briefcase size={18} /> Jobs
+            <Briefcase size={18} /> الوظائف
           </NavLink>
           <NavLink to="/chat">
-            <MessageSquare size={18} /> AI Assistant
+            <MessageSquare size={18} /> مساعد الذكاء الاصطناعي
           </NavLink>
           <NavLink to="/settings">
-            <Settings size={18} /> Settings
+            <Settings size={18} /> الإعدادات
           </NavLink>
         </nav>
       </aside>
