@@ -93,6 +93,7 @@ class CandidateListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+    facets: Optional[dict] = None
 
 
 class MoveStageRequest(BaseModel):
@@ -143,3 +144,62 @@ class ApplyChangesRequest(BaseModel):
 
 class ChatHistoryResponse(BaseModel):
     messages: list[ChatMessageResponse]
+
+
+# ── Saved Searches ───────────────────────────────────────────────────────────
+
+class SavedSearchFilters(BaseModel):
+    search: Optional[str] = None
+    job_id: Optional[int] = None
+    min_score: Optional[float] = Field(None, ge=0, le=100)
+    max_score: Optional[float] = Field(None, ge=0, le=100)
+    recommendation: Optional[str] = None
+    recommendations: Optional[list[str]] = None
+    stage: Optional[str] = None
+    stages: Optional[list[str]] = None
+    scored_only: bool = False
+    has_resume: Optional[bool] = None
+    has_cover_letter: Optional[bool] = None
+    source: Optional[str] = None
+    sources: Optional[list[str]] = None
+    tags: Optional[list[str]] = None
+    tags_mode: Optional[str] = "any"  # "any" or "all"
+    name_contains: Optional[str] = None
+    email_contains: Optional[str] = None
+    resume_contains: Optional[str] = None
+    keywords: Optional[list[str]] = None
+    keywords_mode: Optional[str] = "any"  # "any" or "all" — matches across name, resume, cover letter, summary
+    exclude_keywords: Optional[list[str]] = None
+    scored_after: Optional[datetime] = None
+    scored_before: Optional[datetime] = None
+    created_after: Optional[datetime] = None
+    created_before: Optional[datetime] = None
+    is_archived: bool = False
+    sort_by: str = "created_at"
+    sort_order: str = "desc"
+
+
+class SavedSearchCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=256)
+    description: Optional[str] = Field(None, max_length=512)
+    filters: SavedSearchFilters
+    is_default: bool = False
+
+
+class SavedSearchUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=256)
+    description: Optional[str] = Field(None, max_length=512)
+    filters: Optional[SavedSearchFilters] = None
+    is_default: Optional[bool] = None
+
+
+class SavedSearchResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    filters: dict
+    is_default: bool = False
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}

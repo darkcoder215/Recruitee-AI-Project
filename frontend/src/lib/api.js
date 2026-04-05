@@ -125,3 +125,16 @@ export const applyChatChanges = (messageId) =>
 
 export const clearChatHistory = () =>
   request("/chat/history", { method: "DELETE" });
+
+// ── Saved Searches ──
+
+export const listSavedSearches = () => request("/saved-searches");
+
+export const createSavedSearch = (data) =>
+  request("/saved-searches", { method: "POST", body: JSON.stringify(data) });
+
+export const updateSavedSearch = (id, data) =>
+  request(`/saved-searches/${id}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const deleteSavedSearch = (id) =>
+  request(`/saved-searches/${id}`, { method: "DELETE" });

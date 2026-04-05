@@ -4,7 +4,7 @@ import asyncio
 import datetime
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, or_, and_
+from sqlalchemy import select, func, or_, and_, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -259,68 +259,212 @@ async def import_candidates(payload: ImportRequest, db: AsyncSession = Depends(g
     )
 
 
-# ── List & Search ─────────────────────────────────────────────────────────────
+# ── List & Advanced Search ────────────────────────────────────────────────────
 
 @router.get("", response_model=CandidateListResponse)
 async def list_candidates(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
+    # Basic search
     search: str | None = Query(None, max_length=256),
+    # Field-specific search
+    name_contains: str | None = Query(None, max_length=256),
+    email_contains: str | None = Query(None, max_length=256),
+    resume_contains: str | None = Query(None, max_length=512),
+    # Keyword search (comma-separated)
+    keywords: str | None = Query(None, max_length=1024, description="Comma-separated keywords to search in name, resume, cover letter, summary"),
+    keywords_mode: str = Query("any", pattern="^(any|all)$"),
+    exclude_keywords: str | None = Query(None, max_length=1024, description="Comma-separated keywords to exclude"),
+    # Structured filters
     job_id: int | None = Query(None, description="Filter by job recruitee ID"),
     min_score: float | None = Query(None, ge=0, le=100),
     max_score: float | None = Query(None, ge=0, le=100),
     recommendation: str | None = Query(None),
+    recommendations: str | None = Query(None, description="Comma-separated recommendations"),
     stage: str | None = Query(None),
+    stages: str | None = Query(None, description="Comma-separated stages"),
+    source: str | None = Query(None),
+    sources: str | None = Query(None, description="Comma-separated sources"),
+    tags: str | None = Query(None, description="Comma-separated tags"),
+    tags_mode: str = Query("any", pattern="^(any|all)$"),
     scored_only: bool = Query(False),
-    sort_by: str = Query("created_at", pattern="^(created_at|ai_score|name|updated_at)$"),
+    has_resume: bool | None = Query(None),
+    has_cover_letter: bool | None = Query(None),
+    # Date filters
+    scored_after: str | None = Query(None),
+    scored_before: str | None = Query(None),
+    created_after: str | None = Query(None),
+    created_before: str | None = Query(None),
+    # Sort & pagination
+    sort_by: str = Query("created_at", pattern="^(created_at|ai_score|name|updated_at|ai_scored_at)$"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     is_archived: bool = Query(False),
+    # Facets
+    include_facets: bool = Query(False, description="Include facet counts for filters"),
     db: AsyncSession = Depends(get_db),
 ):
-    """List candidates with search, filtering, sorting, and pagination."""
+    """Advanced candidate search with full-text, field-specific, keyword, and structured filters."""
     query = select(Candidate).where(Candidate.is_archived == is_archived)
     count_query = select(func.count(Candidate.id)).where(Candidate.is_archived == is_archived)
 
-    # Apply filters
     filters = []
 
+    # Global text search — matches across multiple fields
     if search:
-        search_term = f"%{search}%"
+        term = f"%{search}%"
         filters.append(
             or_(
-                Candidate.name.ilike(search_term),
-                Candidate.email.ilike(search_term),
-                Candidate.job_title.ilike(search_term),
-                Candidate.ai_summary.ilike(search_term),
-                Candidate.current_stage.ilike(search_term),
+                Candidate.name.ilike(term),
+                Candidate.email.ilike(term),
+                Candidate.job_title.ilike(term),
+                Candidate.ai_summary.ilike(term),
+                Candidate.current_stage.ilike(term),
+                Candidate.resume_text.ilike(term),
+                Candidate.cover_letter.ilike(term),
+                Candidate.source.ilike(term),
             )
         )
 
+    # Field-specific text search
+    if name_contains:
+        filters.append(Candidate.name.ilike(f"%{name_contains}%"))
+    if email_contains:
+        filters.append(Candidate.email.ilike(f"%{email_contains}%"))
+    if resume_contains:
+        filters.append(
+            or_(
+                Candidate.resume_text.ilike(f"%{resume_contains}%"),
+                Candidate.cover_letter.ilike(f"%{resume_contains}%"),
+            )
+        )
+
+    # Keyword search: match across text fields
+    if keywords:
+        kw_list = [k.strip() for k in keywords.split(",") if k.strip()]
+        if kw_list:
+            kw_filters = []
+            for kw in kw_list:
+                term = f"%{kw}%"
+                kw_filters.append(
+                    or_(
+                        Candidate.name.ilike(term),
+                        Candidate.resume_text.ilike(term),
+                        Candidate.cover_letter.ilike(term),
+                        Candidate.ai_summary.ilike(term),
+                        Candidate.job_title.ilike(term),
+                    )
+                )
+            if keywords_mode == "all":
+                filters.append(and_(*kw_filters))
+            else:
+                filters.append(or_(*kw_filters))
+
+    # Exclude keywords: reject if any appear
+    if exclude_keywords:
+        exc_list = [k.strip() for k in exclude_keywords.split(",") if k.strip()]
+        for kw in exc_list:
+            term = f"%{kw}%"
+            filters.append(
+                ~or_(
+                    Candidate.name.ilike(term),
+                    Candidate.resume_text.ilike(term),
+                    Candidate.cover_letter.ilike(term),
+                    Candidate.ai_summary.ilike(term),
+                )
+            )
+
+    # Structured filters
     if job_id is not None:
         filters.append(Candidate.job_recruitee_id == job_id)
 
     if min_score is not None:
         filters.append(Candidate.ai_score >= min_score)
-
     if max_score is not None:
         filters.append(Candidate.ai_score <= max_score)
 
     if recommendation:
         filters.append(Candidate.ai_recommendation == recommendation)
+    elif recommendations:
+        rec_list = [r.strip() for r in recommendations.split(",") if r.strip()]
+        if rec_list:
+            filters.append(Candidate.ai_recommendation.in_(rec_list))
 
     if stage:
         filters.append(Candidate.current_stage == stage)
+    elif stages:
+        stage_list = [s.strip() for s in stages.split(",") if s.strip()]
+        if stage_list:
+            filters.append(Candidate.current_stage.in_(stage_list))
+
+    if source:
+        filters.append(Candidate.source == source)
+    elif sources:
+        src_list = [s.strip() for s in sources.split(",") if s.strip()]
+        if src_list:
+            filters.append(Candidate.source.in_(src_list))
+
+    # Tag filtering (JSON column — uses LIKE on serialized JSON)
+    if tags:
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+        if tag_list:
+            tag_filters = []
+            for tag in tag_list:
+                tag_filters.append(Candidate.tags.cast(String).ilike(f'%"{tag}"%'))
+            if tags_mode == "all":
+                filters.append(and_(*tag_filters))
+            else:
+                filters.append(or_(*tag_filters))
 
     if scored_only:
         filters.append(Candidate.ai_score.isnot(None))
 
+    if has_resume is True:
+        filters.append(Candidate.resume_text.isnot(None))
+        filters.append(Candidate.resume_text != "")
+    elif has_resume is False:
+        filters.append(or_(Candidate.resume_text.is_(None), Candidate.resume_text == ""))
+
+    if has_cover_letter is True:
+        filters.append(Candidate.cover_letter.isnot(None))
+        filters.append(Candidate.cover_letter != "")
+    elif has_cover_letter is False:
+        filters.append(or_(Candidate.cover_letter.is_(None), Candidate.cover_letter == ""))
+
+    # Date filters
+    if scored_after:
+        try:
+            filters.append(Candidate.ai_scored_at >= scored_after)
+        except Exception:
+            pass
+    if scored_before:
+        try:
+            filters.append(Candidate.ai_scored_at <= scored_before)
+        except Exception:
+            pass
+    if created_after:
+        try:
+            filters.append(Candidate.created_at >= created_after)
+        except Exception:
+            pass
+    if created_before:
+        try:
+            filters.append(Candidate.created_at <= created_before)
+        except Exception:
+            pass
+
     if filters:
-        query = query.where(and_(*filters))
-        count_query = count_query.where(and_(*filters))
+        combined = and_(*filters)
+        query = query.where(combined)
+        count_query = count_query.where(combined)
 
     # Count
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
+
+    # Facets — count breakdowns for key dimensions
+    facets = None
+    if include_facets:
+        facets = await _compute_facets(db, is_archived)
 
     # Sort
     sort_column = getattr(Candidate, sort_by, Candidate.created_at)
@@ -330,8 +474,8 @@ async def list_candidates(
         query = query.order_by(sort_column.asc().nullsfirst())
 
     # Paginate
-    offset = (page - 1) * page_size
-    query = query.offset(offset).limit(page_size)
+    offset_val = (page - 1) * page_size
+    query = query.offset(offset_val).limit(page_size)
 
     result = await db.execute(query)
     candidates = result.scalars().all()
@@ -341,7 +485,94 @@ async def list_candidates(
         total=total,
         page=page,
         page_size=page_size,
+        facets=facets,
     )
+
+
+async def _compute_facets(db: AsyncSession, is_archived: bool) -> dict:
+    """Compute filter facet counts for the sidebar."""
+    base = Candidate.is_archived == is_archived
+
+    # Recommendations
+    rec_counts = {}
+    for rec in ["strong_yes", "yes", "maybe", "no", "strong_no"]:
+        r = await db.execute(
+            select(func.count(Candidate.id)).where(and_(base, Candidate.ai_recommendation == rec))
+        )
+        count = r.scalar() or 0
+        if count > 0:
+            rec_counts[rec] = count
+
+    # Stages
+    stage_result = await db.execute(
+        select(Candidate.current_stage, func.count(Candidate.id))
+        .where(and_(base, Candidate.current_stage.isnot(None)))
+        .group_by(Candidate.current_stage)
+        .order_by(func.count(Candidate.id).desc())
+        .limit(20)
+    )
+    stage_counts = {row[0]: row[1] for row in stage_result.all()}
+
+    # Sources
+    source_result = await db.execute(
+        select(Candidate.source, func.count(Candidate.id))
+        .where(and_(base, Candidate.source.isnot(None)))
+        .group_by(Candidate.source)
+        .order_by(func.count(Candidate.id).desc())
+        .limit(20)
+    )
+    source_counts = {row[0]: row[1] for row in source_result.all()}
+
+    # Jobs
+    job_result = await db.execute(
+        select(Candidate.job_title, Candidate.job_recruitee_id, func.count(Candidate.id))
+        .where(and_(base, Candidate.job_title.isnot(None)))
+        .group_by(Candidate.job_title, Candidate.job_recruitee_id)
+        .order_by(func.count(Candidate.id).desc())
+        .limit(20)
+    )
+    job_counts = [
+        {"title": row[0], "job_id": row[1], "count": row[2]}
+        for row in job_result.all()
+    ]
+
+    # Score distribution
+    score_ranges = {}
+    for label, lo, hi in [("0-20", 0, 20), ("21-40", 21, 40), ("41-60", 41, 60), ("61-80", 61, 80), ("81-100", 81, 100)]:
+        r = await db.execute(
+            select(func.count(Candidate.id)).where(
+                and_(base, Candidate.ai_score >= lo, Candidate.ai_score <= hi)
+            )
+        )
+        count = r.scalar() or 0
+        if count > 0:
+            score_ranges[label] = count
+
+    # Content availability
+    has_resume_r = await db.execute(
+        select(func.count(Candidate.id)).where(
+            and_(base, Candidate.resume_text.isnot(None), Candidate.resume_text != "")
+        )
+    )
+    has_cl_r = await db.execute(
+        select(func.count(Candidate.id)).where(
+            and_(base, Candidate.cover_letter.isnot(None), Candidate.cover_letter != "")
+        )
+    )
+    scored_r = await db.execute(
+        select(func.count(Candidate.id)).where(and_(base, Candidate.ai_score.isnot(None)))
+    )
+
+    return {
+        "recommendations": rec_counts,
+        "stages": stage_counts,
+        "sources": source_counts,
+        "jobs": job_counts,
+        "score_ranges": score_ranges,
+        "has_resume": has_resume_r.scalar() or 0,
+        "has_cover_letter": has_cl_r.scalar() or 0,
+        "scored": scored_r.scalar() or 0,
+    }
 
 
 # ── Single Candidate ─────────────────────────────────────────────────────────

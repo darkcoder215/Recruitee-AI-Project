@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.database import init_db
-from app.routers import settings, jobs, candidates, chat
+from app.routers import settings, jobs, candidates, chat, search
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -41,6 +41,7 @@ app.include_router(settings.router)
 app.include_router(jobs.router)
 app.include_router(candidates.router)
 app.include_router(chat.router)
+app.include_router(search.router)
 
 
 @app.exception_handler(Exception)

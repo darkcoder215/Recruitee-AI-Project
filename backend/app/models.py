@@ -128,3 +128,15 @@ class Candidate(Base):
         Index("ix_candidates_ai_score", "ai_score"),
         Index("ix_candidates_name", "name"),
     )
+
+
+class SavedSearch(Base):
+    __tablename__ = "saved_searches"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(256), nullable=False)
+    description = Column(String(512), nullable=True)
+    filters = Column(JSON, nullable=False, default=dict)
+    is_default = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
