@@ -21,7 +21,56 @@ class Settings(Base):
             "'strong_yes', 'yes', 'maybe', 'no', 'strong_no')."
         ),
     )
+    # Configurable extraction and scoring
+    extraction_fields = Column(
+        JSON,
+        default=lambda: [
+            {"key": "name", "label": "Full Name", "enabled": True},
+            {"key": "email", "label": "Email", "enabled": True},
+            {"key": "phone", "label": "Phone", "enabled": True},
+            {"key": "resume_text", "label": "Resume / CV Text", "enabled": True},
+            {"key": "cover_letter", "label": "Cover Letter", "enabled": True},
+            {"key": "source", "label": "Application Source", "enabled": True},
+            {"key": "tags", "label": "Tags", "enabled": True},
+            {"key": "custom_fields", "label": "Custom Fields", "enabled": True},
+            {"key": "photo_url", "label": "Photo", "enabled": False},
+        ],
+    )
+    scoring_criteria = Column(
+        JSON,
+        default=lambda: [
+            {"name": "Skills Match", "weight": 30, "description": "How well the candidate's skills match the job requirements"},
+            {"name": "Experience Relevance", "weight": 25, "description": "Relevance and depth of work experience"},
+            {"name": "Education Fit", "weight": 15, "description": "Educational background alignment"},
+            {"name": "Culture Fit", "weight": 15, "description": "Alignment with team and company culture indicators"},
+            {"name": "Communication", "weight": 15, "description": "Quality of written communication in application"},
+        ],
+    )
+    filter_rules = Column(
+        JSON,
+        default=lambda: {
+            "auto_reject": {"enabled": False, "min_score": 20, "action": "archive"},
+            "auto_advance": {"enabled": False, "min_score": 80, "target_stage": "Interview"},
+            "must_have_keywords": [],
+            "nice_to_have_keywords": [],
+            "exclude_keywords": [],
+            "min_experience_years": None,
+            "required_education": None,
+            "preferred_sources": [],
+        },
+    )
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True)
+    role = Column(String(32), nullable=False)  # user, assistant, system
+    content = Column(Text, nullable=False)
+    proposed_changes = Column(JSON, nullable=True)  # structured changes proposed by AI
+    changes_applied = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 
 class Job(Base):

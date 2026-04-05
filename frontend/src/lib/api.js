@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
 class ApiError extends Error {
   constructor(message, status, data) {
@@ -106,3 +106,22 @@ export const unarchiveCandidate = (id) =>
 export const getCandidateStats = () => request("/candidates/stats/overview");
 
 export const healthCheck = () => request("/health");
+
+// ── Chat ──
+
+export const getChatHistory = () => request("/chat/history");
+
+export const sendChatMessage = (message) =>
+  request("/chat/send", {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+
+export const applyChatChanges = (messageId) =>
+  request("/chat/apply", {
+    method: "POST",
+    body: JSON.stringify({ message_id: messageId }),
+  });
+
+export const clearChatHistory = () =>
+  request("/chat/history", { method: "DELETE" });

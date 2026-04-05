@@ -21,25 +21,64 @@ class AIServiceError(Exception):
         super().__init__(self.message)
 
 
-def _build_candidate_prompt(candidate: dict, job: dict | None, scoring_prompt: str) -> str:
-    """Build the prompt for candidate evaluation."""
-    parts = [scoring_prompt, "\n\n--- CANDIDATE INFORMATION ---"]
+def _build_candidate_prompt(
+    candidate: dict,
+    job: dict | None,
+    scoring_prompt: str,
+    scoring_criteria: list | None = None,
+    extraction_fields: list | None = None,
+) -> str:
+    """Build the prompt for candidate evaluation using configurable criteria and fields."""
+    parts = [scoring_prompt]
 
-    parts.append(f"Name: {candidate.get('name', 'Unknown')}")
+    # Add scoring criteria if configured
+    if scoring_criteria:
+        parts.append("\n\n--- SCORING CRITERIA ---")
+        parts.append("Evaluate the candidate on these weighted dimensions:")
+        for criterion in scoring_criteria:
+            if isinstance(criterion, dict):
+                name = criterion.get("name", "")
+                weight = criterion.get("weight", 0)
+                desc = criterion.get("description", "")
+                parts.append(f"- {name} (weight: {weight}%): {desc}")
+        parts.append("The final score should be a weighted average of these dimensions.")
 
-    if candidate.get("resume_text"):
-        text = candidate["resume_text"][:8000]  # Limit to avoid token overflow
+    parts.append("\n\n--- CANDIDATE INFORMATION ---")
+
+    # Determine which fields are enabled
+    enabled_keys = None
+    if extraction_fields:
+        enabled_keys = set()
+        for f in extraction_fields:
+            if isinstance(f, dict) and f.get("enabled", True):
+                enabled_keys.add(f.get("key", ""))
+
+    def _is_enabled(key):
+        return enabled_keys is None or key in enabled_keys
+
+    if _is_enabled("name"):
+        parts.append(f"Name: {candidate.get('name', 'Unknown')}")
+
+    if _is_enabled("resume_text") and candidate.get("resume_text"):
+        text = candidate["resume_text"][:8000]
         parts.append(f"\nResume/CV:\n{text}")
 
-    if candidate.get("cover_letter"):
+    if _is_enabled("cover_letter") and candidate.get("cover_letter"):
         text = candidate["cover_letter"][:3000]
         parts.append(f"\nCover Letter:\n{text}")
 
-    if candidate.get("tags"):
+    if _is_enabled("tags") and candidate.get("tags"):
         parts.append(f"\nTags: {', '.join(str(t) for t in candidate['tags'])}")
 
-    if candidate.get("source"):
+    if _is_enabled("source") and candidate.get("source"):
         parts.append(f"\nSource: {candidate['source']}")
+
+    if _is_enabled("custom_fields") and candidate.get("custom_fields"):
+        cf = candidate["custom_fields"]
+        if isinstance(cf, dict) and cf:
+            parts.append("\nCustom Fields:")
+            for k, v in cf.items():
+                parts.append(f"  {k}: {v}")
 
     if job:
         parts.append("\n\n--- JOB INFORMATION ---")
@@ -137,6 +176,8 @@ async def score_candidate(
     candidate: dict,
     job: dict | None,
     scoring_prompt: str,
+    scoring_criteria: list | None = None,
+    extraction_fields: list | None = None,
 ) -> dict:
     """Score a candidate using OpenRouter AI."""
     if not api_key or not api_key.strip():
@@ -145,7 +186,7 @@ async def score_candidate(
     if not model or not model.strip():
         model = "openai/gpt-4o-mini"
 
-    prompt = _build_candidate_prompt(candidate, job, scoring_prompt)
+    prompt = _build_candidate_prompt(candidate, job, scoring_prompt, scoring_criteria, extraction_fields)
 
     headers = {
         "Authorization": f"Bearer {api_key.strip()}",

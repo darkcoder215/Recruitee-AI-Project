@@ -11,6 +11,9 @@ class SettingsUpdate(BaseModel):
     openrouter_api_key: Optional[str] = None
     ai_model: Optional[str] = None
     scoring_prompt: Optional[str] = None
+    extraction_fields: Optional[list] = None
+    scoring_criteria: Optional[list] = None
+    filter_rules: Optional[dict] = None
 
     @field_validator("recruitee_api_token", "openrouter_api_key", mode="before")
     @classmethod
@@ -28,6 +31,9 @@ class SettingsResponse(BaseModel):
     openrouter_api_key_set: bool
     ai_model: str
     scoring_prompt: str
+    extraction_fields: list = []
+    scoring_criteria: list = []
+    filter_rules: dict = {}
     updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
@@ -105,3 +111,35 @@ class ImportResponse(BaseModel):
     jobs_imported: int
     candidates_imported: int
     errors: list[str]
+
+
+# ── Chat / AI Assistant ──────────────────────────────────────────────────────
+
+class ChatMessageRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=4000)
+
+
+class ProposedChange(BaseModel):
+    section: str  # scoring_prompt, scoring_criteria, filter_rules, extraction_fields
+    description: str
+    current_value: Optional[object] = None
+    new_value: object
+
+
+class ChatMessageResponse(BaseModel):
+    id: int
+    role: str
+    content: str
+    proposed_changes: Optional[list[ProposedChange]] = None
+    changes_applied: bool = False
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class ApplyChangesRequest(BaseModel):
+    message_id: int
+
+
+class ChatHistoryResponse(BaseModel):
+    messages: list[ChatMessageResponse]

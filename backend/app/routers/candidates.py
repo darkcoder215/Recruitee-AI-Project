@@ -25,6 +25,41 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/candidates", tags=["candidates"])
 
 
+def _apply_filter_rules(candidate, settings):
+    """Apply automated filter rules after scoring."""
+    rules = settings.filter_rules
+    if not rules or not isinstance(rules, dict):
+        return
+
+    score = candidate.ai_score
+    if score is None:
+        return
+
+    # Auto-reject: archive candidates below threshold
+    auto_reject = rules.get("auto_reject", {})
+    if (
+        isinstance(auto_reject, dict)
+        and auto_reject.get("enabled")
+        and auto_reject.get("min_score") is not None
+        and score < auto_reject["min_score"]
+    ):
+        action = auto_reject.get("action", "archive")
+        if action == "archive":
+            candidate.is_archived = True
+        candidate.current_stage = "Rejected"
+
+    # Auto-advance: move high scorers to a target stage
+    auto_advance = rules.get("auto_advance", {})
+    if (
+        isinstance(auto_advance, dict)
+        and auto_advance.get("enabled")
+        and auto_advance.get("min_score") is not None
+        and score >= auto_advance["min_score"]
+        and auto_advance.get("target_stage")
+    ):
+        candidate.current_stage = auto_advance["target_stage"]
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 async def _get_settings(db: AsyncSession) -> Settings:
@@ -356,6 +391,7 @@ async def score_single_candidate(candidate_id: int, db: AsyncSession = Depends(g
         "cover_letter": candidate.cover_letter,
         "tags": candidate.tags or [],
         "source": candidate.source,
+        "custom_fields": candidate.custom_fields or {},
     }
 
     try:
@@ -365,6 +401,8 @@ async def score_single_candidate(candidate_id: int, db: AsyncSession = Depends(g
             candidate=candidate_data,
             job=job_data,
             scoring_prompt=settings.scoring_prompt or "",
+            scoring_criteria=settings.scoring_criteria,
+            extraction_fields=settings.extraction_fields,
         )
 
         candidate.ai_score = ai_result["score"]
@@ -375,6 +413,9 @@ async def score_single_candidate(candidate_id: int, db: AsyncSession = Depends(g
         candidate.ai_scored_at = datetime.datetime.utcnow()
         candidate.ai_model_used = settings.ai_model
         candidate.scoring_error = None
+
+        # Apply filter rules after scoring
+        _apply_filter_rules(candidate, settings)
 
     except AIServiceError as e:
         candidate.scoring_error = str(e.message)
@@ -424,6 +465,7 @@ async def bulk_score_candidates(payload: BulkScoreRequest, db: AsyncSession = De
                 "cover_letter": candidate.cover_letter,
                 "tags": candidate.tags or [],
                 "source": candidate.source,
+                "custom_fields": candidate.custom_fields or {},
             }
 
             ai_result = await score_candidate(
@@ -432,6 +474,8 @@ async def bulk_score_candidates(payload: BulkScoreRequest, db: AsyncSession = De
                 candidate=candidate_data,
                 job=job_data,
                 scoring_prompt=settings.scoring_prompt or "",
+                scoring_criteria=settings.scoring_criteria,
+                extraction_fields=settings.extraction_fields,
             )
 
             candidate.ai_score = ai_result["score"]
@@ -442,6 +486,8 @@ async def bulk_score_candidates(payload: BulkScoreRequest, db: AsyncSession = De
             candidate.ai_scored_at = datetime.datetime.utcnow()
             candidate.ai_model_used = settings.ai_model
             candidate.scoring_error = None
+
+            _apply_filter_rules(candidate, settings)
             results["scored"] += 1
 
             # Rate limiting pause between candidates

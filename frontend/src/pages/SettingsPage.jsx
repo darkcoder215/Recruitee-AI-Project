@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { getSettings, updateSettings, testRecruitee, testOpenRouter } from "../lib/api";
 import LoadingSpinner from "../components/LoadingSpinner";
-import { Save, TestTube, Eye, EyeOff } from "lucide-react";
+import { Save, TestTube, Eye, EyeOff, MessageSquare } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState(null);
@@ -238,6 +239,79 @@ export default function SettingsPage() {
           {saving ? <><span className="spinner" style={{ width: 14, height: 14, marginRight: 6 }} /> Saving...</> : <><Save size={16} style={{ marginRight: 4 }} /> Save Settings</>}
         </button>
       </form>
+
+      {/* Current AI Configuration Summary */}
+      <div style={{ marginTop: "2rem" }}>
+        <div className="flex items-center justify-between mb-md">
+          <h3 style={{ fontSize: "1.1rem" }}>AI Configuration</h3>
+          <Link to="/chat" className="btn-primary btn-sm" style={{ textDecoration: "none" }}>
+            <MessageSquare size={14} style={{ marginRight: 4 }} /> Configure with AI Assistant
+          </Link>
+        </div>
+
+        {/* Scoring Criteria */}
+        <div className="card mb-md">
+          <h4 style={{ fontSize: "0.9rem", marginBottom: "0.75rem" }}>Scoring Criteria</h4>
+          {settings?.scoring_criteria?.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+              {settings.scoring_criteria.map((c, i) => (
+                <div key={i} className="flex items-center gap-sm" style={{ fontSize: "0.85rem" }}>
+                  <span className="badge badge-blue" style={{ minWidth: 45, textAlign: "center" }}>{c.weight}%</span>
+                  <span style={{ fontWeight: 500 }}>{c.name}</span>
+                  <span className="text-dim">— {c.description}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted">Using default scoring criteria. Use the AI Assistant to customize.</p>
+          )}
+        </div>
+
+        {/* Filter Rules */}
+        <div className="card mb-md">
+          <h4 style={{ fontSize: "0.9rem", marginBottom: "0.75rem" }}>Filter Rules</h4>
+          {settings?.filter_rules ? (
+            <div style={{ fontSize: "0.85rem", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+              <div>
+                Auto-reject:{" "}
+                <span className={`badge ${settings.filter_rules.auto_reject?.enabled ? "badge-red" : "badge-gray"}`}>
+                  {settings.filter_rules.auto_reject?.enabled ? `Enabled (below ${settings.filter_rules.auto_reject.min_score})` : "Disabled"}
+                </span>
+              </div>
+              <div>
+                Auto-advance:{" "}
+                <span className={`badge ${settings.filter_rules.auto_advance?.enabled ? "badge-green" : "badge-gray"}`}>
+                  {settings.filter_rules.auto_advance?.enabled ? `Enabled (above ${settings.filter_rules.auto_advance.min_score} → ${settings.filter_rules.auto_advance.target_stage})` : "Disabled"}
+                </span>
+              </div>
+              {settings.filter_rules.must_have_keywords?.length > 0 && (
+                <div>Must-have keywords: {settings.filter_rules.must_have_keywords.map((k, i) => <span key={i} className="badge badge-blue" style={{ marginRight: 3 }}>{k}</span>)}</div>
+              )}
+              {settings.filter_rules.exclude_keywords?.length > 0 && (
+                <div>Exclude keywords: {settings.filter_rules.exclude_keywords.map((k, i) => <span key={i} className="badge badge-red" style={{ marginRight: 3 }}>{k}</span>)}</div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted">No filter rules configured.</p>
+          )}
+        </div>
+
+        {/* Extraction Fields */}
+        <div className="card mb-md">
+          <h4 style={{ fontSize: "0.9rem", marginBottom: "0.75rem" }}>Extraction Fields</h4>
+          {settings?.extraction_fields?.length > 0 ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+              {settings.extraction_fields.map((f, i) => (
+                <span key={i} className={`badge ${f.enabled ? "badge-green" : "badge-gray"}`}>
+                  {f.label || f.key}: {f.enabled ? "ON" : "OFF"}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted">Using default extraction fields.</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

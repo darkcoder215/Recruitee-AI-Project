@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Users, Briefcase, Settings, LayoutDashboard, Columns3 } from "lucide-react";
+import { Users, Briefcase, Settings, LayoutDashboard, Columns3, MessageSquare } from "lucide-react";
 
 export default function Layout() {
   return (
@@ -21,6 +21,9 @@ export default function Layout() {
           </NavLink>
           <NavLink to="/jobs">
             <Briefcase size={18} /> Jobs
+          </NavLink>
+          <NavLink to="/chat">
+            <MessageSquare size={18} /> AI Assistant
           </NavLink>
           <NavLink to="/settings">
             <Settings size={18} /> Settings

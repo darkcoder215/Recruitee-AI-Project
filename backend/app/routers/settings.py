@@ -26,12 +26,19 @@ async def _get_or_create_settings(db: AsyncSession) -> Settings:
 async def get_settings(db: AsyncSession = Depends(get_db)):
     """Get current settings (API keys are masked)."""
     settings = await _get_or_create_settings(db)
+    return _settings_to_response(settings)
+
+
+def _settings_to_response(settings: Settings) -> SettingsResponse:
     return SettingsResponse(
         recruitee_api_token_set=bool(settings.recruitee_api_token),
         recruitee_company_id=settings.recruitee_company_id,
         openrouter_api_key_set=bool(settings.openrouter_api_key),
         ai_model=settings.ai_model or "openai/gpt-4o-mini",
         scoring_prompt=settings.scoring_prompt or "",
+        extraction_fields=settings.extraction_fields or [],
+        scoring_criteria=settings.scoring_criteria or [],
+        filter_rules=settings.filter_rules or {},
         updated_at=settings.updated_at,
     )
 
@@ -51,14 +58,7 @@ async def update_settings(payload: SettingsUpdate, db: AsyncSession = Depends(ge
     await db.commit()
     await db.refresh(settings)
 
-    return SettingsResponse(
-        recruitee_api_token_set=bool(settings.recruitee_api_token),
-        recruitee_company_id=settings.recruitee_company_id,
-        openrouter_api_key_set=bool(settings.openrouter_api_key),
-        ai_model=settings.ai_model or "openai/gpt-4o-mini",
-        scoring_prompt=settings.scoring_prompt or "",
-        updated_at=settings.updated_at,
-    )
+    return _settings_to_response(settings)
 
 
 @router.post("/test-recruitee")

@@ -5,6 +5,7 @@ import CandidatesPage from "./pages/CandidatesPage";
 import PipelinePage from "./pages/PipelinePage";
 import JobsPage from "./pages/JobsPage";
 import SettingsPage from "./pages/SettingsPage";
+import ChatPage from "./pages/ChatPage";
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="/candidates" element={<CandidatesPage />} />
           <Route path="/pipeline" element={<PipelinePage />} />
           <Route path="/jobs" element={<JobsPage />} />
+          <Route path="/chat" element={<ChatPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>
