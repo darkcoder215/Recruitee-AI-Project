@@ -2,7 +2,12 @@ import os
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./recruitee_ai.db")
+# On Vercel, only /tmp is writable. Default SQLite path adjusts automatically.
+_default_db = "sqlite+aiosqlite:///./recruitee_ai.db"
+if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+    _default_db = "sqlite+aiosqlite:////tmp/recruitee_ai.db"
+
+DATABASE_URL = os.getenv("DATABASE_URL", _default_db)
 
 engine = create_async_engine(DATABASE_URL, echo=False)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
